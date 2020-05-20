@@ -21,6 +21,32 @@ export default function contentParser(
   { content },
   { wordPressUrl, uploadsUrl }
 ) {
+  if (typeof content === 'undefined') {
+    console.log(
+      'ERROR: contentParser requires content parameter to be string but got undefined.'
+    );
+  }
+
+  if (typeof content !== 'string') {
+    return content;
+  }
+
+  const subdirectoryCorrection = (path, wordPressUrl) => {
+    const wordPressUrlParsed = new URIParser(wordPressUrl);
+    // detect if WordPress is installed in subdirectory
+    const subdir = wordPressUrlParsed.path();
+    return path.replace(subdir, '/');
+  };
+	
+	const getAnchor = (url) => {
+		let anchor = '#' + url.split('#')[1];
+		if (!url.includes('#')) {
+			return;
+		} else {
+			return anchor;
+		}
+	};
+
   const parserOptions = {
     replace: domNode => {
       let elementUrl =
@@ -31,8 +57,15 @@ export default function contentParser(
       if (!elementUrl) {
         return;
       }
-
+			
+			let urlAnchor = getAnchor(elementUrl);
       let urlParsed = new URIParser(elementUrl);
+
+      // TODO test if this hash handling is sufficient
+      if (elementUrl === urlParsed.hash()) {
+        return;
+      }
+
       // handling relative url
       const isUrlRelative = urlParsed.is('relative');
 
@@ -62,11 +95,20 @@ export default function contentParser(
         !elementUrlNoProtocol.includes(uploadsUrlNoProtocol)
       ) {
         let url = urlParsed.path();
-        return (
-          <Styled.a as={Link} to={url} className={className}>
-            {domToReact(domNode.children, parserOptions)}
-          </Styled.a>
-        );
+        url = subdirectoryCorrection(url, wordPressUrl);
+				if (urlAnchor) {
+					return (
+						<Styled.a as={Link} to={url + urlAnchor} className={className}>
+							{domToReact(domNode.children, parserOptions)}
+						</Styled.a>
+					);
+				} else {
+					return (
+						<Styled.a as={Link} to={url} className={className}>
+							{domToReact(domNode.children, parserOptions)}
+						</Styled.a>
+					);
+				}
       }
 
       // cleans up internal processing attribute
